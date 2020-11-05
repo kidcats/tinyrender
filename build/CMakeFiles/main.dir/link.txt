@@ -1,0 +1,1 @@
+/usr/bin/g++-7   -pg -g   -pg -rdynamic CMakeFiles/main.dir/main.cpp.o CMakeFiles/main.dir/model.cpp.o CMakeFiles/main.dir/tgaimage.cpp.o  -o main 

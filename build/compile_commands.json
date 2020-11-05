@@ -1,0 +1,17 @@
+[
+{
+  "directory": "/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/build",
+  "command": "/usr/bin/g++-7     -pg -g   -o CMakeFiles/main.dir/main.cpp.o -c /mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/main.cpp",
+  "file": "/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/main.cpp"
+},
+{
+  "directory": "/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/build",
+  "command": "/usr/bin/g++-7     -pg -g   -o CMakeFiles/main.dir/model.cpp.o -c /mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/model.cpp",
+  "file": "/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/model.cpp"
+},
+{
+  "directory": "/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/build",
+  "command": "/usr/bin/g++-7     -pg -g   -o CMakeFiles/main.dir/tgaimage.cpp.o -c /mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/tgaimage.cpp",
+  "file": "/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/tgaimage.cpp"
+}
+]

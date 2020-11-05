@@ -1,0 +1,5 @@
+/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/build/CMakeFiles/rebuild_cache.dir
+/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/build/CMakeFiles/main.dir
+/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/build/CMakeFiles/package_source.dir
+/mnt/c/Users/kidca/Documents/cplusproject/cg/tinyrender/build/CMakeFiles/package.dir

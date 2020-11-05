@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.0.0)
+project(tinyrender VERSION 0.1.0)
+
+
+aux_source_directory(. DIR_SRCS)
+
+# 调试参数
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pg")
+SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pg")
+SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pg")
+
+add_executable(main ${DIR_SRCS})
+
+set(CPACK_PROJECT_NAME ${PROJECT_NAME})
+set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
+include(CPack)
