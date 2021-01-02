@@ -1,125 +1,185 @@
-#include <vector>
-#include <cmath>
-#include "tgaimage.h"
-#include "model.h"
-#include "geometry.h"
+#include "Triangle.hpp"
+#include "rasterizer.hpp"
+#include <eigen3/Eigen/Eigen>
+#include <iostream>
+#include <opencv2/opencv.hpp>
 
-const TGAColor white = TGAColor(255, 255, 255, 255);
-const TGAColor red = TGAColor(255, 0, 0, 255);
-const TGAColor green = TGAColor(0, 255, 0, 255);
-Model *model = NULL;
-const int width = 800;
-const int height = 800;
-/*
-a,b,c是顶点坐标 ，p是输入点坐标
-*/
-Vec3f barycentric(Vec2i a, Vec2i b, Vec2i c, Vec2i p)
+constexpr double MY_PI = 3.1415926;
+
+/**
+ * @brief Get the view matrix object 视图变换
+ * 将x to (g*t) ,y to t , z to -g进行旋转变换然后再求逆矩阵
+ * 
+ * @param eye_pos 
+ * @return Eigen::Matrix4f 
+ */
+Eigen::Matrix4f get_view_matrix(Eigen::Vector3f eye_pos)
 {
-    float u = (float)((p.y - b.y) * (c.x - b.x) - (p.x - b.x) * (c.y - b.y)) /
-              ((a.y - b.y) * (c.x - b.x) - (a.x - b.x) * (c.y - b.y));
-    float v = (float)((p.y - c.y) * (a.x - c.x) - (p.x - c.x) * (a.y - c.y)) /
-              ((b.y - c.y) * (a.x - c.x) - (b.x - c.x) * (a.y - c.y));
-    return Vec3f(u, v, 1 - u - v);
+    Eigen::Matrix4f view = Eigen::Matrix4f::Identity();
+
+    Eigen::Matrix4f translate;
+    translate << 1, 0, 0, -eye_pos[0], 0, 1, 0, -eye_pos[1], 0, 0, 1,
+        -eye_pos[2], 0, 0, 0, 1;
+
+    view = translate * view;
+
+    return view;
 }
 
-void line(Vec2i p0, Vec2i p1, TGAImage &image, TGAColor color)
+Eigen::Matrix4f get_model_matrix(float rotation_angle)
 {
-    bool steep = false;
-    if (std::abs(p0.x - p1.x) < std::abs(p0.y - p1.y))
+    Eigen::Matrix4f model = Eigen::Matrix4f::Identity();
+
+    // TODO: Implement this function
+    // Create the model matrix for rotating the triangle around the Z axis.
+    // Then return it.
+    Eigen::Matrix4f rotate(4, 4); // z-axis rotation
+    float radian = rotation_angle / 180.0 * MY_PI;
+    rotate << cos(radian), -sin(radian), 0, 0,
+        sin(radian), cos(radian), 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1;
+    model = rotate * model;
+
+    return model;
+}
+
+/**
+ * @brief Get the projection matrix object 投影矩阵,有正交投影和透视投影两个,先透视后正交
+ * 
+ * @param eye_fov 决定上下的范围,即y
+ * @param aspect_ratio 长宽比
+ * @param zNear 近处的长度
+ * @param zFar 远处的长度
+ * @return Eigen::Matrix4f 
+ */
+Eigen::Matrix4f get_projection_matrix(float eye_fov, float aspect_ratio,
+                                      float zNear, float zFar)
+{
+    // Students will implement this function
+
+    Eigen::Matrix4f projection = Eigen::Matrix4f::Identity();
+    Eigen::Matrix4f M_persp2ortho(4, 4);
+    Eigen::Matrix4f M_ortho_scale(4, 4);
+    Eigen::Matrix4f M_ortho_trans(4, 4);
+    //已更正
+    float angle = eye_fov * MY_PI / 180.0;
+    float height = zNear * tan(angle) * 2; // 挤压后的高(y轴)
+    float width = height * aspect_ratio;   // 挤压后的宽(x轴)
+
+    auto t = -zNear * tan(angle / 2); // 上截面
+    auto r = t * aspect_ratio;        //右截面
+    auto l = -r;                      // 左截面
+    auto b = -t;                      // 下截面
+    // 透视矩阵"挤压"
+    M_persp2ortho << zNear, 0, 0, 0,
+        0, zNear, 0, 0,
+        0, 0, zNear + zFar, -zNear * zFar,
+        0, 0, 1, 0;
+    // 正交矩阵-缩放
+    M_ortho_scale << 2 / (r - l), 0, 0, 0,
+        0, 2 / (t - b), 0, 0,
+        0, 0, 2 / (zNear - zFar), 0,
+        0, 0, 0, 1;
+    // 正交矩阵-平移
+    M_ortho_trans << 1, 0, 0, -(r + l) / 2,
+        0, 1, 0, -(t + b) / 2,
+        0, 0, 1, -(zNear + zFar) / 2,
+        0, 0, 0, 1;
+    Eigen::Matrix4f M_ortho = M_ortho_scale * M_ortho_trans;
+    projection = M_ortho * M_persp2ortho * projection;
+
+    return projection;
+}
+
+int main(int argc, const char **argv)
+{
+    float angle = 0;
+    bool command_line = false;
+    std::string filename = "output.png";
+
+    if (argc >= 3)
     {
-        std::swap(p0.x, p0.y);
-        std::swap(p1.x, p1.y);
-        steep = true;
-    }
-    if (p0.x > p1.x)
-    {
-        std::swap(p0, p1);
-    }
-    for (int x = p0.x; x <= p1.x; x++)
-    {
-        float t = (x - p0.x) / (float)(p1.x - p0.x);
-        int y = p0.y * (1. - t) + p1.y * t;
-        if (steep)
+        command_line = true;
+        angle = std::stof(argv[2]); // -r by default
+        if (argc == 4)
         {
-            image.set(y, x, color);
+            filename = std::string(argv[3]);
         }
         else
+            return 0;
+    }
+
+    rst::rasterizer r(700, 700); // 当不是700的时候会有很奇怪的错误,一会记得看
+
+    Eigen::Vector3f eye_pos = {0, 0, 5};
+
+    std::vector<Eigen::Vector3f> pos{{2, 0, 0}, {0, 2, 0}, {-2, 0, 0}};
+    std::vector<Eigen::Vector3i> ind{{0, 1, 2}};
+
+    auto pos_id = r.load_positions(pos);
+    auto ind_id = r.load_indices(ind);
+
+    // 如果渲染一个凸多边形的画,需要的三角形个数是n-2所以pos_in = n-2
+    std::vector<Eigen::Vector3f> vec{{2, 0, 0}, {0, 2, 0}, {-2, 0, 0}, {0, -2, 0}};
+
+    int key = 0;
+    int frame_count = 0;
+
+    if (command_line)
+    {
+        r.clear(rst::Buffers::Color | rst::Buffers::Depth);
+
+        r.set_model(get_model_matrix(angle));
+        r.set_view(get_view_matrix(eye_pos));
+        r.set_projection(get_projection_matrix(45, 1, 0.1, 50));
+
+        // r.draw(pos_id, ind_id, rst::Primitive::Triangle);
+        //        r.draw_circle(pos_id,ind_id,rst::Primitive::Circle,100);
+        // 化凸多边形
+    
+        cv::Mat image(700, 700, CV_32FC3, r.frame_buffer().data());
+        image.convertTo(image, CV_8UC3, 1.0f);
+
+        cv::imwrite(filename, image);
+
+        return 0;
+    }
+
+    while (key != 27)
+    {
+        r.clear(rst::Buffers::Color | rst::Buffers::Depth);
+
+        r.set_model(get_model_matrix(angle));
+        r.set_view(get_view_matrix(eye_pos));
+        r.set_projection(get_projection_matrix(45, 1, 0.1, 50));
+
+
+        // r.draw(pos_id, ind_id, rst::Primitive::Triangle);
+        //         r.draw_circle(pos_id,ind_id,rst::Primitive::Circle,200);
+        // r.draw_elliptic(pos_id,ind_id,rst::Primitive::Elliptic,200,100);
+        for(int i = 2;i < vec.size(); i++){
+            auto pos1 = r.load_positions({vec[0],vec[i-1],vec[i]});
+
+            auto ind1 = r.load_indices(ind);
+            r.draw(pos1,ind1,rst::Primitive::Triangle);
+        }
+        cv::Mat image(700, 700, CV_32FC3, r.frame_buffer().data());
+        image.convertTo(image, CV_8UC3, 1.0f);
+        cv::imshow("image", image);
+        key = cv::waitKey(10);
+
+        std::cout << "frame count: " << frame_count++ << '\n';
+
+        if (key == 'a')
         {
-            image.set(x, y, color);
+            angle += 10;
+        }
+        else if (key == 'd')
+        {
+            angle -= 10;
         }
     }
-}
 
-void triangle(Vec2i t0, Vec2i t1, Vec2i t2, TGAImage &image, TGAColor color)
-{
-    if (t0.y == t1.y && t0.y == t2.y)
-        return;
-    if (t0.y > t1.y)
-        std::swap(t0, t1);
-    if (t0.y > t2.y)
-        std::swap(t0, t2);
-    if (t1.y > t2.y)
-        std::swap(t2, t1); // 保证是按照t0<t1<t2的顺序排列
-    int total_height = t2.y - t0.y;
-    // 先找到三角形的上下左右边界
-    int total_right = std::max(std::max(t0.x, t1.x), t2.x);
-    int total_left = std::min(std::min(t0.x, t1.x), t2.x);
-    // 利用重心坐标判断点是否在三角形内部
-    for (int i = total_left; i < total_right; i++)
-    {
-        for (int j = t0.y; j < t2.y; j++)
-        {
-            // 先求出点对应的重心坐标
-            Vec2i point = {i, j};
-            auto bary = barycentric(t0, t1, t2, point);
-            bool in_triangle = bary.x >= 0 && bary.y >= 0 && bary.z >= 0;
-            if (!in_triangle)
-            {
-                continue;
-            }
-            else
-            {
-                image.set(i, j, color);
-            }
-        }
-    }
-}
-
-int main(int argc, char **argv)
-{
-
-    if (argc == 2)
-    {
-        model = new Model(argv[1]);
-    }
-    else
-    {
-        model = new Model("obj/african_head.obj");
-    }
-    TGAImage image(width, height, TGAImage::RGB);
-    Vec3f light_dir(0, 0, -1);
-
-    for (int i = 0; i < model->nfaces(); i++)
-    {
-        std::vector<int> face = model->face(i);
-        Vec2i screen_coords[3];
-        Vec3f world_coords[3];
-        for (int j = 0; j < 3; j++)
-        {
-            Vec3f v = model->vert(face[j]);
-            screen_coords[j] = Vec2i((v.x + 1.) * width / 2., (v.y + 1.) * height / 2.);
-            world_coords[j] = v;
-        }
-        Vec3f n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]);
-        n.normalize();
-        float intensity = n * light_dir;
-        if (intensity > 0)
-        {
-            triangle(screen_coords[0], screen_coords[1], screen_coords[2], image, TGAColor(intensity * 255, intensity * 255, intensity * 255, 255));
-        }
-    }
-    image.flip_vertically();
-    image.write_tga_file("output.tga");
-    delete model;
     return 0;
 }
